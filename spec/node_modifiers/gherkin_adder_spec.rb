@@ -23,8 +23,21 @@ describe Hiptest::NodeModifiers::GherkinAdder do
     ])
   }
 
+  let(:scenario_actionword_name) { "My scenario with \"parameter\"" }
+  let(:scenario_actionword) {
+    make_actionword(scenario_actionword_name, parameters: [
+      make_parameter("parameter")
+    ])
+  }
+
+  let(:scenario_with_parameter) {
+    make_scenario(scenario_actionword_name, body: [
+      call
+    ])
+  }
+
   let(:project) {
-    make_project("My project", scenarios: [scenario], actionwords: [actionword])
+    make_project("My project", scenarios: [scenario, scenario_with_parameter], actionwords: [actionword, scenario_actionword])
   }
 
   subject(:gherkin_text) { call.children[:gherkin_text] }
@@ -34,6 +47,25 @@ describe Hiptest::NodeModifiers::GherkinAdder do
   before(:each) {
     Hiptest::NodeModifiers::GherkinAdder.add(project)
   }
+
+  context "actionword from scenario" do
+    it "adds corresponding :gherkin_pattern to Actionword" do
+      expect(scenario_actionword.children[:gherkin_pattern]).to eq("^My scenario with \"(.*)\"$")
+    end
+
+    it "adds the corresponding :gherkin_annotation to Actionword" do
+      expect(scenario_actionword.children[:gherkin_annotation]).to eq("Given")
+    end
+
+    it "adds the correct informations and extra_inlined_parameters to Actionword" do
+      expect(scenario_actionword.chunks).to eq([
+        {value: "My scenario with ", is_parameter: false},
+        {value: "(.*)", name: 'parameter', is_parameter: true},
+        {value: "", is_parameter: false}
+      ])
+      expect(scenario_actionword.extra_inlined_parameters).to be_empty
+    end
+  end
 
   context "actionword without parameters" do
     let(:actionword_name) { "I say hello world" }

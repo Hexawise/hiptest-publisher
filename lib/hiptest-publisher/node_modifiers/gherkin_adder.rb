@@ -21,20 +21,13 @@ module Hiptest
       def update_calls
         @project.each_sub_nodes(Hiptest::Nodes::Scenario, Hiptest::Nodes::Actionword, Hiptest::Nodes::Test, Hiptest::Nodes::Folder) do |item|
           @last_annotation = nil
+
+          actionword = set_node_actionword(item, :name) if item.is_a?(Hiptest::Nodes::Scenario)
+
           item.each_sub_nodes(Hiptest::Nodes::Call) do |call|
             set_call_chunks(call)
             call.children[:gherkin_text] ||= "#{text_annotation(call)} #{prettified(call)}"
-
-            if actionword = get_actionword(call)
-              if actionword.is_a?(Hiptest::Nodes::LibraryActionword)
-                call.children[:library_name] = actionword.parent.children[:name]
-              end
-              @annotations_counter.increment(actionword, code_annotation(call))
-              set_actionwords_chunks(actionword)
-
-              actionword.children[:gherkin_pattern] ||= pattern(actionword)
-              actionword.children[:parameters_ordered_by_pattern] ||= order_parameters_by_pattern(actionword)
-            end
+            actionword = set_node_actionword(call, :actionword)
           end
         end
 
@@ -187,18 +180,33 @@ module Hiptest
       end
 
       def get_actionword_parameters(call)
-        actionword = get_actionword(call)
+        actionword = get_actionword(call, :actionword)
         actionword && actionword.children[:parameters] || []
       end
 
-      def get_actionword(call)
-        actionword = @library_indexer.get_index(call.children[:actionword])
+      def get_actionword(call, key)
+        actionword = @library_indexer.get_index(call.children[key])
 
         if actionword.nil?
-          actionword = @indexer.get_index(call.children[:actionword])
+          actionword = @indexer.get_index(call.children[key])
         end
 
         actionword && actionword[:actionword] || nil
+      end
+
+      def set_node_actionword(node, key)
+        if actionword = get_actionword(node, key)
+          if actionword.is_a?(Hiptest::Nodes::LibraryActionword)
+            node.children[:library_name] = actionword.parent.children[:name]
+          end
+          @annotations_counter.increment(actionword, code_annotation(node))
+          set_actionwords_chunks(actionword)
+
+          actionword.children[:gherkin_pattern] ||= pattern(actionword)
+          actionword.children[:parameters_ordered_by_pattern] ||= order_parameters_by_pattern(actionword)
+        end
+
+        return actionword
       end
 
       def evaluated_map(named_values)
